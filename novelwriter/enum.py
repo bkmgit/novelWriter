@@ -144,8 +144,9 @@ class nwView(Enum):
     EDITOR  = 0
     PROJECT = 1
     NOVEL   = 2
-    OUTLINE = 3
+    TAGS    = 3
     SEARCH  = 4
+    OUTLINE = 5
 
 
 class nwFocus(Enum):

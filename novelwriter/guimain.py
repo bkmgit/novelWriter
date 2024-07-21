@@ -56,6 +56,7 @@ from novelwriter.gui.projtree import GuiProjectView
 from novelwriter.gui.search import GuiProjectSearch
 from novelwriter.gui.sidebar import GuiSideBar
 from novelwriter.gui.statusbar import GuiMainStatus
+from novelwriter.gui.tagstree import GuiTagsView
 from novelwriter.gui.theme import GuiTheme
 from novelwriter.tools.dictionaries import GuiDictionaries
 from novelwriter.tools.manuscript import GuiManuscript
@@ -121,8 +122,9 @@ class GuiMain(QMainWindow):
         # Main GUI Elements
         self.mainStatus     = GuiMainStatus(self)
         self.projView       = GuiProjectView(self)
-        self.projSearch     = GuiProjectSearch(self)
         self.novelView      = GuiNovelView(self)
+        self.tagsView       = GuiTagsView(self)
+        self.projSearch     = GuiProjectSearch(self)
         self.docEditor      = GuiDocEditor(self)
         self.docViewer      = GuiDocViewer(self)
         self.docViewerPanel = GuiDocViewerPanel(self)
@@ -135,6 +137,7 @@ class GuiMain(QMainWindow):
         self.projStack = QStackedWidget(self)
         self.projStack.addWidget(self.projView)
         self.projStack.addWidget(self.novelView)
+        self.projStack.addWidget(self.tagsView)
         self.projStack.addWidget(self.projSearch)
         self.projStack.currentChanged.connect(self._projStackChanged)
 
@@ -1007,29 +1010,38 @@ class GuiMain(QMainWindow):
         """Switch focus between main GUI views."""
         if paneNo == nwFocus.TREE:
             # Decision Matrix
-            #  vM | vP | fP | vN | fN | Focus
-            # ----|----|----|----|----|---------
-            #  T  | T  | T  | F  | F  | Novel
-            #  T  | T  | F  | F  | F  | Project
-            #  T  | F  | F  | T  | T  | Project
-            #  T  | F  | F  | T  | F  | Novel
-            #  T  | F  | F  | F  | F  | Project
-            #  F  | T  | T  | F  | F  | Project
-            #  F  | T  | F  | F  | F  | Project
-            #  F  | F  | F  | T  | T  | Novel
-            #  F  | F  | F  | T  | F  | Novel
-            #  F  | F  | F  | F  | F  | Project
+            #  vM | vP | fP | vN | fN | vT | fT | Focus
+            # ----|----|----|----|----|----|----|---------
+            #  T  | T  | T  | F  | F  | F  | F  | Novel
+            #  T  | T  | F  | F  | F  | F  | F  | Project
+            #  T  | F  | F  | T  | T  | F  | F  | Tags
+            #  T  | F  | F  | T  | F  | F  | F  | Novel
+            #  T  | F  | F  | F  | F  | T  | T  | Project
+            #  T  | F  | F  | F  | F  | T  | F  | Tags
+            #  T  | F  | F  | F  | F  | F  | F  | Project
+            #  F  | T  | T  | F  | F  | F  | F  | Project
+            #  F  | T  | F  | F  | F  | F  | F  | Project
+            #  F  | F  | F  | T  | T  | F  | F  | Novel
+            #  F  | F  | F  | T  | F  | F  | F  | Novel
+            #  F  | F  | F  | F  | F  | T  | T  | Tags
+            #  F  | F  | F  | F  | F  | T  | F  | Tags
+            #  F  | F  | F  | F  | F  | F  | F  | Project
 
             vM = self.mainStack.currentWidget() is self.splitMain
             vP = self.projStack.currentWidget() is self.projView
             vN = self.projStack.currentWidget() is self.novelView
+            vT = self.projStack.currentWidget() is self.tagsView
             fP = self.projView.treeHasFocus()
             fN = self.novelView.treeHasFocus()
+            fT = self.tagsView.treeHasFocus()
 
             self._changeView(nwView.EDITOR)
             if (vM and (vP and fP or vN and not fN)) or (not vM and vN):
                 self._changeView(nwView.NOVEL)
                 self.novelView.setTreeFocus()
+            elif (vM and (vN and fN or vT and not fT)) or (not vM and vT):
+                self._changeView(nwView.TAGS)
+                self.tagsView.setTreeFocus()
             else:
                 self._changeView(nwView.PROJECT)
                 self.projView.setTreeFocus()
@@ -1176,6 +1188,9 @@ class GuiMain(QMainWindow):
         elif view == nwView.NOVEL:
             self.mainStack.setCurrentWidget(self.splitMain)
             self.projStack.setCurrentWidget(self.novelView)
+        elif view == nwView.TAGS:
+            self.mainStack.setCurrentWidget(self.splitMain)
+            self.projStack.setCurrentWidget(self.tagsView)
         elif view == nwView.SEARCH:
             self.mainStack.setCurrentWidget(self.splitMain)
             self.projStack.setCurrentWidget(self.projSearch)
