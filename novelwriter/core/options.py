@@ -2,10 +2,6 @@
 novelWriter – Project Options Cache
 ===================================
 
-File History:
-Created:   2019-10-21 [0.3.1] OptionState
-Rewritten: 2020-02-19 [0.4.5] OptionState
-
 This file is a part of novelWriter
 Copyright (C) 2019 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -22,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import json
@@ -31,7 +28,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from novelwriter.common import checkBool, checkFloat, checkInt, checkString, jsonEncode
+from novelwriter import SHARED
+from novelwriter.common import checkBool, checkFloat, checkInt, checkString, jsonEncode, safeExists
 from novelwriter.constants import nwFiles
 from novelwriter.error import logException
 
@@ -44,38 +42,78 @@ NWEnum = TypeVar("NWEnum", bound=Enum)
 
 VALID_MAP: dict[str, set[str]] = {
     "GuiWritingStats": {
-        "winWidth", "winHeight", "widthCol0", "widthCol1", "widthCol2",
-        "widthCol3", "sortCol", "sortOrder", "incNovel", "incNotes",
-        "hideZeros", "hideNegative", "groupByDay", "showIdleTime", "histMax",
+        "winWidth",
+        "winHeight",
+        "widthCol0",
+        "widthCol1",
+        "widthCol2",
+        "widthCol3",
+        "sortCol",
+        "sortOrder",
+        "incNovel",
+        "incNotes",
+        "hideZeros",
+        "hideNegative",
+        "groupByDay",
+        "showIdleTime",
+        "histMax",
     },
     "GuiDocSplit": {"spLevel", "intoFolder", "docHierarchy"},
     "GuiOutline": {"columnState"},
     "GuiProjectSettings": {
-        "winWidth", "winHeight", "replaceColW", "statusColW", "importColW",
+        "winWidth",
+        "winHeight",
+        "replaceColW",
+        "statusColW",
+        "importColW",
     },
     "GuiWordList": {"winWidth", "winHeight"},
     "GuiNovelView": {"lastCol", "lastColSize"},
     "GuiBuildSettings": {
-        "winWidth", "winHeight", "treeWidth", "filterWidth",
+        "winWidth",
+        "winHeight",
+        "treeWidth",
+        "filterWidth",
+        "autoPreview",
     },
     "GuiManuscript": {
-        "winWidth", "winHeight", "optsWidth", "viewWidth", "listHeight",
-        "detailsHeight", "detailsWidth", "detailsExpanded", "showNewPage",
+        "winWidth",
+        "winHeight",
+        "optsWidth",
+        "viewWidth",
+        "listHeight",
+        "detailsHeight",
+        "detailsWidth",
+        "detailsExpanded",
+        "showNewPage",
     },
     "GuiManuscriptBuild": {
-        "winWidth", "winHeight", "fmtWidth", "sumWidth",
+        "winWidth",
+        "winHeight",
+        "fmtWidth",
+        "sumWidth",
     },
     "GuiDocViewerPanel": {
-        "colWidths", "hideInactive",
+        "colWidths",
+        "hideInactive",
     },
     "GuiNovelDetails": {
-        "winWidth", "winHeight", "widthCol0", "widthCol1", "widthCol2",
-        "widthCol3", "widthCol4", "wordsPerPage", "countFrom", "clearDouble",
+        "winWidth",
+        "winHeight",
+        "widthCol0",
+        "widthCol1",
+        "widthCol2",
+        "widthCol3",
+        "widthCol4",
+        "wordsPerPage",
+        "countFrom",
+        "clearDouble",
         "novelRoot",
     },
     "GuiOutlineDetails": {
-        "detailsWidth", "tagsWidth",
-    }
+        "detailsWidth",
+        "tagsWidth",
+    },
 }
 
 
@@ -102,7 +140,7 @@ class OptionState:
             return False
 
         data = {}
-        if stateFile.exists():
+        if safeExists(stateFile):
             logger.debug("Loading GUI options file")
             try:
                 with open(stateFile, mode="r", encoding="utf-8") as inFile:
@@ -134,7 +172,8 @@ class OptionState:
             with open(stateFile, mode="w+", encoding="utf-8") as fObj:
                 data = {"novelWriter.guiOptions": self._state}
                 fObj.write(jsonEncode(data, nmax=4))
-        except Exception:
+        except Exception as exc:
+            SHARED.appendErrorMessage(exc)
             logger.error("Failed to save GUI options file")
             logException()
             return False
@@ -213,10 +252,8 @@ class OptionState:
         """Return the value mapped to an enum. Otherwise return the
         default value.
         """
-        if issubclass(lookup, type(default)):
-            if group in self._state:
-                if name in self._state[group]:
-                    value = self._state[group][name]
-                    if value in lookup.__members__:
-                        return lookup[value]
+        if issubclass(lookup, type(default)) and group in self._state and name in self._state[group]:
+            value = self._state[group][name]
+            if value in lookup.__members__:
+                return lookup[value]
         return default

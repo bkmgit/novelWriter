@@ -2,9 +2,6 @@
 novelWriter – Manuscript Document Builder
 =========================================
 
-File History:
-Created: 2022-12-01 [2.1b1] NWBuildDocument
-
 This file is a part of novelWriter
 Copyright (C) 2022 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
@@ -60,7 +58,12 @@ class NWBuildDocument:
     """
 
     __slots__ = (
-        "_build", "_cache", "_count", "_error", "_outline", "_project",
+        "_build",
+        "_cache",
+        "_count",
+        "_error",
+        "_outline",
+        "_project",
         "_queue",
     )
 
@@ -176,10 +179,10 @@ class NWBuildDocument:
             makeObj.closeDocument()
 
         elif bFormat == nwBuildFmt.PDF:
-            makeObj = ToQTextDocument(self._project)
+            makeObj = ToQTextDocument(self._project, pdf=True)
             makeObj.disableAnchors()
             filtered = self._setupBuild(makeObj)
-            makeObj.initDocument(pdf=True)
+            makeObj.initDocument()
             yield from self._iterBuild(makeObj, filtered)
             makeObj.closeDocument()
 
@@ -220,50 +223,53 @@ class NWBuildDocument:
         textFont.fromString(self._build.getStr("format.textFont"))
 
         bldObj.setTextFont(textFont)
-        bldObj.setLanguage(self._project.data.language)
+        bldObj.setLanguage(self._build.getStr("doc.metaLanguage") or self._project.data.language)
 
         bldObj.setPartitionFormat(
             self._build.getStr("headings.fmtPart"),
-            self._build.getBool("headings.hidePart")
+            self._build.getBool("headings.hidePart"),
         )
         bldObj.setChapterFormat(
             self._build.getStr("headings.fmtChapter"),
-            self._build.getBool("headings.hideChapter")
+            self._build.getBool("headings.hideChapter"),
         )
         bldObj.setUnNumberedFormat(
             self._build.getStr("headings.fmtUnnumbered"),
-            self._build.getBool("headings.hideUnnumbered")
+            self._build.getBool("headings.hideUnnumbered"),
         )
         bldObj.setSceneFormat(
             self._build.getStr("headings.fmtScene"),
-            self._build.getBool("headings.hideScene")
+            self._build.getBool("headings.hideScene"),
         )
         bldObj.setHardSceneFormat(
             self._build.getStr("headings.fmtAltScene"),
-            self._build.getBool("headings.hideAltScene")
+            self._build.getBool("headings.hideAltScene"),
         )
         bldObj.setSectionFormat(
             self._build.getStr("headings.fmtSection"),
-            self._build.getBool("headings.hideSection")
+            self._build.getBool("headings.hideSection"),
         )
         bldObj.setTitleStyle(
             self._build.getBool("headings.centerTitle"),
-            self._build.getBool("headings.breakTitle")
+            self._build.getBool("headings.breakTitle"),
         )
         bldObj.setPartitionStyle(
             self._build.getBool("headings.centerPart"),
-            self._build.getBool("headings.breakPart")
+            self._build.getBool("headings.breakPart"),
         )
         bldObj.setChapterStyle(
             self._build.getBool("headings.centerChapter"),
-            self._build.getBool("headings.breakChapter")
+            self._build.getBool("headings.breakChapter"),
         )
         bldObj.setSceneStyle(
             self._build.getBool("headings.centerScene"),
-            self._build.getBool("headings.breakScene")
+            self._build.getBool("headings.breakScene"),
         )
 
-        bldObj.setJustify(self._build.getBool("format.justifyText"))
+        bldObj.setJustify(
+            self._build.getBool("format.justifyText"),
+            self._build.getBool("format.justifyOnBreak"),
+        )
         bldObj.setLineHeight(self._build.getFloat("format.lineHeight"))
         bldObj.setKeepLineBreaks(self._build.getBool("format.keepBreaks"))
         bldObj.setDialogHighlight(self._build.getBool("format.showDialogue"))
@@ -273,36 +279,41 @@ class NWBuildDocument:
             self._build.getBool("format.indentFirstPar"),
         )
         bldObj.setHeadingStyles(
-            self._build.getBool("doc.colorHeadings"),
-            self._build.getBool("doc.scaleHeadings"),
-            self._build.getBool("doc.boldHeadings"),
+            self._build.getBool("format.colorHeadings"),
+            self._build.getBool("format.boldHeadings"),
+            self._build.getBool("format.upperHeadings"),
         )
 
-        bldObj.setTitleMargins(
+        bldObj.setTitleProperties(
             self._build.getFloat("format.titleMarginT"),
             self._build.getFloat("format.titleMarginB"),
+            self._build.getFloat("format.titleSize"),
         )
-        bldObj.setHead1Margins(
+        bldObj.setHead1Properties(
             self._build.getFloat("format.h1MarginT"),
             self._build.getFloat("format.h1MarginB"),
+            self._build.getFloat("format.h1Size"),
         )
-        bldObj.setHead2Margins(
+        bldObj.setHead2Properties(
             self._build.getFloat("format.h2MarginT"),
             self._build.getFloat("format.h2MarginB"),
+            self._build.getFloat("format.h2Size"),
         )
-        bldObj.setHead3Margins(
+        bldObj.setHead3Properties(
             self._build.getFloat("format.h3MarginT"),
             self._build.getFloat("format.h3MarginB"),
+            self._build.getFloat("format.h3Size"),
         )
-        bldObj.setHead4Margins(
+        bldObj.setHead4Properties(
             self._build.getFloat("format.h4MarginT"),
             self._build.getFloat("format.h4MarginB"),
+            self._build.getFloat("format.h4Size"),
         )
-        bldObj.setTextMargins(
+        bldObj.setTextProperties(
             self._build.getFloat("format.textMarginT"),
             self._build.getFloat("format.textMarginB"),
         )
-        bldObj.setSeparatorMargins(
+        bldObj.setSeparatorProperties(
             self._build.getFloat("format.sepMarginT"),
             self._build.getFloat("format.sepMarginB"),
         )
@@ -330,17 +341,16 @@ class NWBuildDocument:
             scale = nwLabels.UNIT_SCALE.get(self._build.getStr("format.pageUnit"), 1.0)
             pW, pH = nwLabels.PAPER_SIZE.get(self._build.getStr("format.pageSize"), (-1.0, -1.0))
             bldObj.setPageLayout(
-                pW if pW > 0.0 else scale*self._build.getFloat("format.pageWidth"),
-                pH if pH > 0.0 else scale*self._build.getFloat("format.pageHeight"),
-                scale*self._build.getFloat("format.topMargin"),
-                scale*self._build.getFloat("format.bottomMargin"),
-                scale*self._build.getFloat("format.leftMargin"),
-                scale*self._build.getFloat("format.rightMargin"),
+                pW if pW > 0.0 else scale * self._build.getFloat("format.pageWidth"),
+                pH if pH > 0.0 else scale * self._build.getFloat("format.pageHeight"),
+                scale * self._build.getFloat("format.topMargin"),
+                scale * self._build.getFloat("format.bottomMargin"),
+                scale * self._build.getFloat("format.leftMargin"),
+                scale * self._build.getFloat("format.rightMargin"),
             )
+            bldObj.setLineForMargin(self._build.getBool("format.lineForMargin"))
 
-        return self._build.buildItemFilter(
-            self._project, withRoots=self._build.getBool("text.addNoteHeadings")
-        )
+        return self._build.buildItemFilter(self._project, withRoots=self._build.getBool("text.addNoteHeadings"))
 
     def _doBuild(self, bldObj: Tokenizer, tHandle: str, convert: bool = True) -> bool:
         """Build a single document and add it to the build object."""

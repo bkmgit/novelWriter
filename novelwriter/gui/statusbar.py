@@ -2,9 +2,6 @@
 novelWriter – GUI Main Window Status Bar
 ========================================
 
-File History:
-Created: 2019-04-20 [0.0.1] GuiMainStatus
-
 This file is a part of novelWriter
 Copyright (C) 2019 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,21 +18,26 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
 
 from datetime import datetime
 from time import time
+from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QLocale, pyqtSlot
-from PyQt6.QtWidgets import QApplication, QLabel, QStatusBar, QWidget
+from PyQt6.QtCore import QTimer, pyqtSlot
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QStatusBar, QWidget
 
 from novelwriter import CONFIG, SHARED
-from novelwriter.common import formatTime
+from novelwriter.common import formatTime, languageName
 from novelwriter.constants import nwConst, nwLabels, nwStats, trStats
 from novelwriter.extensions.modified import NClickableLabel
 from novelwriter.extensions.statusled import StatusLED
+
+if TYPE_CHECKING:
+    from novelwriter.types import T_MsgSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,9 @@ class GuiMainStatus(QStatusBar):
         self._debugInfo = False
 
         iPx = SHARED.theme.baseIconHeight
+
+        self.messageBox = _MessageWidget(self)
+        self.insertWidget(0, self.messageBox)
 
         # Permanent Widgets
         # =================
@@ -133,6 +138,8 @@ class GuiMainStatus(QStatusBar):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
+        logger.debug("Theme Update: GuiMainStatus")
+
         iPx = SHARED.theme.baseIconHeight
         self.langIcon.setPixmap(SHARED.theme.getPixmap("language", (iPx, iPx)))
         self.statsIcon.setPixmap(SHARED.theme.getPixmap("stats", (iPx, iPx)))
@@ -140,9 +147,9 @@ class GuiMainStatus(QStatusBar):
         self.idlePixmap = SHARED.theme.getPixmap("timer_off", (iPx, iPx))
         self.timeIcon.setPixmap(self.timePixmap)
 
-        colNone = SHARED.theme.getBaseColor("default").darker(150)
-        colSaved = SHARED.theme.getBaseColor("green").darker(150)
-        colUnsaved = SHARED.theme.getBaseColor("red").darker(150)
+        colNone = SHARED.theme.getBaseColor("default")
+        colSaved = SHARED.theme.getBaseColor("green")
+        colUnsaved = SHARED.theme.getBaseColor("red")
         self.docIcon.setColors(colNone, colSaved, colUnsaved)
         self.projIcon.setColors(colNone, colSaved, colUnsaved)
 
@@ -193,10 +200,10 @@ class GuiMainStatus(QStatusBar):
     #  Public Slots
     ##
 
-    @pyqtSlot(str)
-    def setStatusMessage(self, message: str) -> None:
+    @pyqtSlot(str, str)
+    def setStatusMessage(self, message: str, severity: T_MsgSeverity = "info") -> None:
         """Set the status bar message to display."""
-        self.showMessage(message, nwConst.STATUS_MSG_TIMEOUT)
+        self.messageBox.setMessage(message, severity, nwConst.STATUS_MSG_TIMEOUT)
         QApplication.processEvents()
 
     @pyqtSlot(str, str)
@@ -206,7 +213,7 @@ class GuiMainStatus(QStatusBar):
             self.langText.setText(self.tr("None"))
             self.langText.setToolTip("")
         else:
-            self.langText.setText(QLocale(language).nativeLanguageName().title())
+            self.langText.setText(languageName(language))
             self.langText.setToolTip(f"{language} ({provider})" if provider else language)
 
     @pyqtSlot(bool)
@@ -258,8 +265,36 @@ class GuiMainStatus(QStatusBar):
         stamp = datetime.now().strftime("%H:%M:%S")
         message = (
             f"Widgets: {count} \u2013 "
-            f"{self._traceMallocRef} Memory: {current/1024:,.2f} kiB \u2013 "
-            f"Peak: {peak/1024:,.2f} kiB"
+            f"{self._traceMallocRef} Memory: {current / 1024:,.2f} kiB \u2013 "
+            f"Peak: {peak / 1024:,.2f} kiB"
         )
         self.showMessage(f"Debug [{stamp}] {message}", 6000)
         logger.debug("[MEMINFO] %s", message)
+
+
+class _MessageWidget(QWidget):
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._icon = QLabel(self)
+        self._text = QLabel(self)
+
+        self._layout = QHBoxLayout()
+        self._layout.addWidget(self._icon)
+        self._layout.addWidget(self._text)
+        self._layout.setSpacing(4)
+        self._layout.setContentsMargins(4, 0, 0, 0)
+        self.setLayout(self._layout)
+
+    def setMessage(self, message: str, severity: str, timeout: int) -> None:
+        """Set a status bar message with a timeout."""
+        iSz = SHARED.theme.baseIconHeight
+        icon = severity.replace("warning", "warn")
+        self._icon.setPixmap(SHARED.theme.getPixmap(f"alert_{icon}", (iSz, iSz), severity))
+        self._text.setText(message)
+        QTimer.singleShot(timeout, self.clearMessage)
+
+    @pyqtSlot()
+    def clearMessage(self) -> None:
+        """Clear the current status bar message and icon."""
+        self._icon.clear()
+        self._text.clear()

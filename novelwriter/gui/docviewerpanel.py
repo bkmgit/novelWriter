@@ -2,9 +2,6 @@
 novelWriter – GUI Document Viewer Panel
 =======================================
 
-File History:
-Created: 2023-11-14 [2.2rc1] GuiDocViewerPanel
-
 This file is a part of novelWriter
 Copyright (C) 2023 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
@@ -30,8 +28,15 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QFrame, QMenu, QTabWidget, QToolButton, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget
+    QAbstractItemView,
+    QFrame,
+    QMenu,
+    QTabWidget,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from novelwriter import SHARED
@@ -40,7 +45,7 @@ from novelwriter.constants import nwLabels, nwLists, nwStyles, trConst
 from novelwriter.enum import nwChange, nwDocMode, nwItemClass
 from novelwriter.extensions.modified import NIconToolButton
 from novelwriter.gui.theme import STYLES_FLAT_TABS, STYLES_MIN_TOOLBUTTON
-from novelwriter.types import QtDecoration, QtHeaderFixed, QtHeaderToContents, QtUserRole
+from novelwriter.types import QtDecorationRole, QtHeaderFixed, QtHeaderToContents, QtUserRole
 
 if TYPE_CHECKING:
     from novelwriter.core.indexdata import IndexHeading, IndexNode
@@ -75,6 +80,7 @@ class GuiDocViewerPanel(QWidget):
         self.aInactive.toggled.connect(self._toggleHideInactive)
 
         self.optsButton = NIconToolButton(self, iSz)
+        self.optsButton.setToolTip(self.tr("Options"))
         self.optsButton.setMenu(self.optsMenu)
         self.optsButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
@@ -106,7 +112,9 @@ class GuiDocViewerPanel(QWidget):
 
     def updateTheme(self, updateTabs: bool = True) -> None:
         """Update theme elements."""
-        self.optsButton.setThemeIcon("more_vertical")
+        logger.debug("Theme Update: GuiDocViewerPanel")
+
+        self.optsButton.setThemeIcon("more_vertical", "default")
         self.optsButton.setStyleSheet(SHARED.theme.getStyleSheet(STYLES_MIN_TOOLBUTTON))
         self.mainTabs.setStyleSheet(SHARED.theme.getStyleSheet(STYLES_FLAT_TABS))
         if updateTabs:
@@ -187,6 +195,12 @@ class GuiDocViewerPanel(QWidget):
                 logger.warning("Could not remove tag '%s' from view panel", key)
         self._updateTabVisibility()
 
+    @pyqtSlot(list)
+    def updateChangedRefs(self, updated: list[str]) -> None:
+        """Refresh back references when a tracked handle has changed."""
+        if self._lastHandle in updated:
+            self.tabBackRefs.refreshContent(self._lastHandle)
+
     @pyqtSlot(str)
     def updateStatusLabels(self, kind: str) -> None:
         """Update the importance labels."""
@@ -224,11 +238,10 @@ class GuiDocViewerPanel(QWidget):
 
 
 class _ViewPanelBackRefs(QTreeWidget):
-
-    C_DATA  = 0
-    C_DOC   = 0
-    C_EDIT  = 1
-    C_VIEW  = 2
+    C_DATA = 0
+    C_DOC = 0
+    C_EDIT = 1
+    C_VIEW = 2
     C_TITLE = 3
 
     D_HANDLE = QtUserRole
@@ -261,8 +274,8 @@ class _ViewPanelBackRefs(QTreeWidget):
             header.setSectionsMovable(False)
 
         # Cache Icons Locally
-        self._editIcon = SHARED.theme.getIcon("edit", "green")
-        self._viewIcon = SHARED.theme.getIcon("view", "blue")
+        self._editIcon = SHARED.theme.getIcon("edit", "change")
+        self._viewIcon = SHARED.theme.getIcon("view", "action")
 
         # Signals
         self.clicked.connect(self._treeItemClicked)
@@ -270,8 +283,10 @@ class _ViewPanelBackRefs(QTreeWidget):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
-        self._editIcon = SHARED.theme.getIcon("edit", "green")
-        self._viewIcon = SHARED.theme.getIcon("view", "blue")
+        logger.debug("Theme Update: _ViewPanelBackRefs")
+
+        self._editIcon = SHARED.theme.getIcon("edit", "change")
+        self._viewIcon = SHARED.theme.getIcon("view", "action")
         for i in range(self.topLevelItemCount()):
             if item := self.topLevelItem(i):
                 item.setIcon(self.C_EDIT, self._editIcon)
@@ -335,7 +350,7 @@ class _ViewPanelBackRefs(QTreeWidget):
             trItem.setToolTip(self.C_DOC, nwItem.itemName)
             trItem.setIcon(self.C_EDIT, self._editIcon)
             trItem.setIcon(self.C_VIEW, self._viewIcon)
-            trItem.setData(self.C_TITLE, QtDecoration, hDec)
+            trItem.setData(self.C_TITLE, QtDecorationRole, hDec)
             trItem.setText(self.C_TITLE, hItem.title)
             trItem.setToolTip(self.C_TITLE, hItem.title)
             trItem.setData(self.C_DATA, self.D_HANDLE, tHandle)
@@ -346,15 +361,14 @@ class _ViewPanelBackRefs(QTreeWidget):
 
 
 class _ViewPanelKeyWords(QTreeWidget):
-
-    C_DATA   = 0
-    C_NAME   = 0
-    C_EDIT   = 1
-    C_VIEW   = 2
+    C_DATA = 0
+    C_NAME = 0
+    C_EDIT = 1
+    C_VIEW = 2
     C_IMPORT = 3
-    C_DOC    = 4
-    C_TITLE  = 5
-    C_SHORT  = 6
+    C_DOC = 4
+    C_TITLE = 5
+    C_SHORT = 6
 
     D_TAG = QtUserRole
 
@@ -368,10 +382,17 @@ class _ViewPanelKeyWords(QTreeWidget):
         iPx = SHARED.theme.baseIconHeight
         iSz = SHARED.theme.baseIconSize
 
-        self.setHeaderLabels([
-            self.tr("Tag"), "", "", self.tr("Importance"), self.tr("Document"),
-            self.tr("Heading"), self.tr("Short Description")
-        ])
+        self.setHeaderLabels(
+            [
+                self.tr("Tag"),
+                "",
+                "",
+                self.tr("Importance"),
+                self.tr("Document"),
+                self.tr("Heading"),
+                self.tr("Short Description"),
+            ]
+        )
         self.setIndentation(0)
         self.setIconSize(iSz)
         self.setFrameStyle(QFrame.Shape.NoFrame)
@@ -400,9 +421,11 @@ class _ViewPanelKeyWords(QTreeWidget):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
+        logger.debug("Theme Update: _ViewPanelKeyWords")
+
         self._classIcon = SHARED.theme.getIcon(nwLabels.CLASS_ICON[self._class], "root")
-        self._editIcon = SHARED.theme.getIcon("edit", "green")
-        self._viewIcon = SHARED.theme.getIcon("view", "blue")
+        self._editIcon = SHARED.theme.getIcon("edit", "change")
+        self._viewIcon = SHARED.theme.getIcon("view", "action")
 
     def countEntries(self) -> int:
         """Return the number of items in the list."""
@@ -435,7 +458,7 @@ class _ViewPanelKeyWords(QTreeWidget):
         trItem.setIcon(self.C_DOC, nwItem.getMainIcon())
         trItem.setText(self.C_DOC, nwItem.itemName)
         trItem.setToolTip(self.C_DOC, nwItem.itemName)
-        trItem.setData(self.C_TITLE, QtDecoration, hDec)
+        trItem.setData(self.C_TITLE, QtDecorationRole, hDec)
         trItem.setText(self.C_TITLE, hItem.title)
         trItem.setToolTip(self.C_TITLE, hItem.title)
         trItem.setText(self.C_SHORT, hItem.synopsis)
@@ -457,10 +480,10 @@ class _ViewPanelKeyWords(QTreeWidget):
     def setColumnWidths(self, widths: list[int]) -> None:
         """Set the column widths."""
         if isinstance(widths, list) and len(widths) >= 4:
-            self.setColumnWidth(self.C_NAME,   checkInt(widths[0], 100))
+            self.setColumnWidth(self.C_NAME, checkInt(widths[0], 100))
             self.setColumnWidth(self.C_IMPORT, checkInt(widths[1], 100))
-            self.setColumnWidth(self.C_DOC,    checkInt(widths[2], 100))
-            self.setColumnWidth(self.C_TITLE,  checkInt(widths[3], 100))
+            self.setColumnWidth(self.C_DOC, checkInt(widths[2], 100))
+            self.setColumnWidth(self.C_TITLE, checkInt(widths[3], 100))
 
     def getColumnWidths(self) -> list[int]:
         """Get the widths of the user-adjustable columns."""

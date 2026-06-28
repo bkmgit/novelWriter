@@ -18,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import argparse
@@ -45,9 +46,7 @@ def buildSampleZip(args: argparse.Namespace | None = None) -> None:
 
     if srcSample.is_dir():
         dstSample.unlink(missing_ok=True)
-        with zipfile.ZipFile(
-            dstSample, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=3
-        ) as zipObj:
+        with zipfile.ZipFile(dstSample, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=3) as zipObj:
             print("Compressing: nwProject.nwx")
             zipObj.write(srcSample / "nwProject.nwx", "nwProject.nwx")
             for doc in (srcSample / "content").iterdir():
@@ -111,7 +110,6 @@ def updateTranslationSources(args: argparse.Namespace) -> None:
     print("")
 
     sources = list((ROOT_DIR / "novelwriter").glob("**/*.py"))
-    sources.insert(0, ROOT_DIR / "i18n" / "qtbase.py")
     for source in sources:
         print(source.relative_to(ROOT_DIR))
 
@@ -132,11 +130,14 @@ def updateTranslationSources(args: argparse.Namespace) -> None:
             continue
         else:  # Create an empty new language file
             langCode = item.name[3:-3]
-            writeFile(item, (
-                '<?xml version="1.0" encoding="utf-8"?>\n'
-                "<!DOCTYPE TS>\n"
-                f'<TS version="2.0" language="{langCode}" sourcelanguage="en_GB"/>\n'
-            ))
+            writeFile(
+                item,
+                (
+                    '<?xml version="1.0" encoding="utf-8"?>\n'
+                    "<!DOCTYPE TS>\n"
+                    f'<TS version="2.0" language="{langCode}" sourcelanguage="en_GB"/>\n'
+                ),
+            )
             translations.append(item)
             print(f"Created: {item}")
 
@@ -152,6 +153,14 @@ def updateTranslationSources(args: argparse.Namespace) -> None:
     )
 
     print("")
+
+
+def getLReleaseExec() -> str | None:
+    """Look for the lrelease executable."""
+    for entry in ["lrelease-qt6", "lrelease"]:
+        if subprocess.call(f"type {entry}", shell=True) == 0:
+            return entry
+    return None
 
 
 def buildTranslationAssets(args: argparse.Namespace | None = None) -> None:
@@ -178,7 +187,10 @@ def buildTranslationAssets(args: argparse.Namespace | None = None) -> None:
     print("")
 
     try:
-        subprocess.call(["lrelease", "-verbose", *srcList])
+        if lrelease := getLReleaseExec():
+            subprocess.call([lrelease, "-verbose", *srcList])
+        else:
+            raise FileNotFoundError("No lrelease executable found")
     except Exception as exc:
         print("Qt Linguist tools seem to be missing")
         print("On Debian/Ubuntu, install: qttools5-dev-tools")

@@ -2,9 +2,6 @@
 novelWriter – GUI Novel Info
 ============================
 
-File History:
-Created: 2024-01-18 [2.3b1] GuiNovelDetails
-
 This file is a part of novelWriter
 Copyright (C) 2024 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
@@ -30,20 +28,30 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialogButtonBox, QFormLayout, QGridLayout, QHBoxLayout,
-    QLabel, QSpinBox, QStackedWidget, QTreeWidget, QTreeWidgetItem,
-    QVBoxLayout, QWidget
+    QAbstractItemView,
+    QDialogButtonBox,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QStackedWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from novelwriter import SHARED
 from novelwriter.common import formatTime, numberToRoman
 from novelwriter.constants import nwUnicode
+from novelwriter.enum import nwStandardButton
 from novelwriter.extensions.configlayout import NColorLabel, NFixedPage, NScrollablePage
 from novelwriter.extensions.modified import NNonBlockingDialog
 from novelwriter.extensions.novelselector import NovelSelector
 from novelwriter.extensions.pagedsidebar import NPagedSideBar
 from novelwriter.extensions.switch import NSwitch
-from novelwriter.types import QtAlignRight, QtDecoration, QtDialogClose
+from novelwriter.types import QtAlignRight, QtDecorationRole, QtFontSemiBold, QtRoleDestruct
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QCloseEvent
@@ -73,8 +81,11 @@ class GuiNovelDetails(NNonBlockingDialog):
 
         # Title
         self.titleLabel = NColorLabel(
-            self.tr("Novel Details"), self, color=SHARED.theme.helpText,
-            scale=NColorLabel.HEADER_SCALE, indent=4,
+            self.tr("Novel Details"),
+            self,
+            color=SHARED.theme.helpText,
+            scale=NColorLabel.HEADER_SCALE,
+            indent=4,
         )
 
         # Novel Selector
@@ -102,8 +113,11 @@ class GuiNovelDetails(NNonBlockingDialog):
         self.mainStack.addWidget(self.contentsPage)
 
         # Buttons
-        self.buttonBox = QDialogButtonBox(QtDialogClose, self)
-        self.buttonBox.rejected.connect(self.reject)
+        self.btnClose = SHARED.theme.getStandardButton(nwStandardButton.CLOSE, self)
+        self.btnClose.clicked.connect(self.closeDialog)
+
+        self.btnBox = QDialogButtonBox(self)
+        self.btnBox.addButton(self.btnClose, QtRoleDestruct)
 
         # Assemble
         self.topBox = QHBoxLayout()
@@ -119,7 +133,7 @@ class GuiNovelDetails(NNonBlockingDialog):
         self.outerBox = QVBoxLayout()
         self.outerBox.addLayout(self.topBox)
         self.outerBox.addLayout(self.mainBox)
-        self.outerBox.addWidget(self.buttonBox)
+        self.outerBox.addWidget(self.btnBox)
         self.outerBox.setSpacing(8)
 
         self.setLayout(self.outerBox)
@@ -132,6 +146,7 @@ class GuiNovelDetails(NNonBlockingDialog):
         logger.debug("Ready: GuiNovelDetails")
 
     def __del__(self) -> None:  # pragma: no cover
+        """Class destructor."""
         logger.debug("Delete: GuiNovelDetails")
 
     ##
@@ -183,14 +198,12 @@ class GuiNovelDetails(NNonBlockingDialog):
 
 
 class _OverviewPage(NScrollablePage):
-
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent=parent)
 
         # Project Info
         self.projLabel = NColorLabel(
-            self.tr("Project"), self, color=SHARED.theme.helpText,
-            scale=NColorLabel.HEADER_SCALE
+            self.tr("Project"), self, color=SHARED.theme.helpText, scale=NColorLabel.HEADER_SCALE
         )
 
         self.projName = QLabel("", self)
@@ -201,20 +214,22 @@ class _OverviewPage(NScrollablePage):
         self.projEditTime = QLabel("", self)
 
         self.projForm = QFormLayout()
-        self.projForm.addRow("<b>{0}</b>".format(self.tr("Name")), self.projName)
-        self.projForm.addRow("<b>{0}</b>".format(self.tr("Revisions")), self.projRevisions)
-        self.projForm.addRow("<b>{0}</b>".format(self.tr("Editing Time")), self.projEditTime)
-        self.projForm.addRow("<b>{0}</b>".format(self.tr("Word Count")), self.projWords)
-        self.projForm.addRow("<b>\u2026 {0}</b>".format(self.tr("In Novels")), self.projNovels)
-        self.projForm.addRow("<b>\u2026 {0}</b>".format(self.tr("In Notes")), self.projNotes)
+        self.projForm.addRow(self.tr("Name"), self.projName)
+        self.projForm.addRow(self.tr("Revisions"), self.projRevisions)
+        self.projForm.addRow(self.tr("Editing Time"), self.projEditTime)
+        self.projForm.addRow(self.tr("Word Count"), self.projWords)
+        self.projForm.addRow(f"\u2026 {self.tr('In Novels')}", self.projNovels)
+        self.projForm.addRow(f"\u2026 {self.tr('In Notes')}", self.projNotes)
         self.projForm.setContentsMargins(8, 0, 0, 0)
         self.projForm.setHorizontalSpacing(24)
         self.projForm.setVerticalSpacing(4)
 
         # Novel Info
         self.novelLabel = NColorLabel(
-            self.tr("Selected Novel"), self, color=SHARED.theme.helpText,
-            scale=NColorLabel.HEADER_SCALE
+            self.tr("Selected Novel"),
+            self,
+            color=SHARED.theme.helpText,
+            scale=NColorLabel.HEADER_SCALE,
         )
 
         self.novelName = QLabel("", self)
@@ -223,10 +238,10 @@ class _OverviewPage(NScrollablePage):
         self.novelScenes = QLabel("", self)
 
         self.novelForm = QFormLayout()
-        self.novelForm.addRow("<b>{0}</b>".format(self.tr("Name")), self.novelName)
-        self.novelForm.addRow("<b>{0}</b>".format(self.tr("Word Count")), self.novelWords)
-        self.novelForm.addRow("<b>{0}</b>".format(self.tr("Chapters")), self.novelChapters)
-        self.novelForm.addRow("<b>{0}</b>".format(self.tr("Scenes")), self.novelScenes)
+        self.novelForm.addRow(self.tr("Name"), self.novelName)
+        self.novelForm.addRow(self.tr("Word Count"), self.novelWords)
+        self.novelForm.addRow(self.tr("Chapters"), self.novelChapters)
+        self.novelForm.addRow(self.tr("Scenes"), self.novelScenes)
         self.novelForm.setContentsMargins(8, 0, 0, 0)
         self.novelForm.setHorizontalSpacing(24)
         self.novelForm.setVerticalSpacing(4)
@@ -279,12 +294,11 @@ class _OverviewPage(NScrollablePage):
 
 
 class _ContentsPage(NFixedPage):
-
     C_TITLE = 0
     C_WORDS = 1
     C_PAGES = 2
-    C_PAGE  = 3
-    C_PROG  = 4
+    C_PAGE = 3
+    C_PROG = 4
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent=parent)
@@ -298,8 +312,10 @@ class _ContentsPage(NFixedPage):
 
         # Title
         self.contentLabel = NColorLabel(
-            self.tr("Table of Contents"), self, color=SHARED.theme.helpText,
-            scale=NColorLabel.HEADER_SCALE
+            self.tr("Table of Contents"),
+            self,
+            color=SHARED.theme.helpText,
+            scale=NColorLabel.HEADER_SCALE,
         )
 
         # Contents Tree
@@ -308,21 +324,23 @@ class _ContentsPage(NFixedPage):
         self.tocTree.setIndentation(0)
         self.tocTree.setColumnCount(6)
         self.tocTree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.tocTree.setHeaderLabels([
-            self.tr("Title"),
-            self.tr("Words"),
-            self.tr("Pages"),
-            self.tr("Page"),
-            self.tr("Progress"),
-            "",
-        ])
+        self.tocTree.setHeaderLabels(
+            [
+                self.tr("Title"),
+                self.tr("Words"),
+                self.tr("Pages"),
+                self.tr("Page"),
+                self.tr("Progress"),
+                "",
+            ]
+        )
 
         treeHeadItem = self.tocTree.headerItem()
         if treeHeadItem:
             treeHeadItem.setTextAlignment(self.C_WORDS, QtAlignRight)
             treeHeadItem.setTextAlignment(self.C_PAGES, QtAlignRight)
-            treeHeadItem.setTextAlignment(self.C_PAGE,  QtAlignRight)
-            treeHeadItem.setTextAlignment(self.C_PROG,  QtAlignRight)
+            treeHeadItem.setTextAlignment(self.C_PAGE, QtAlignRight)
+            treeHeadItem.setTextAlignment(self.C_PROG, QtAlignRight)
 
         if header := self.tocTree.header():
             header.setStretchLastSection(True)
@@ -343,8 +361,8 @@ class _ContentsPage(NFixedPage):
 
         # Options
         wordsPerPage = options.getInt("GuiNovelDetails", "wordsPerPage", 350)
-        countFrom    = options.getInt("GuiNovelDetails", "countFrom", 1)
-        clearDouble  = options.getBool("GuiNovelDetails", "clearDouble", True)
+        countFrom = options.getInt("GuiNovelDetails", "countFrom", 1)
+        clearDouble = options.getBool("GuiNovelDetails", "clearDouble", True)
 
         self.wpValue = QSpinBox(self)
         self.wpValue.setMinimum(10)
@@ -371,12 +389,12 @@ class _ContentsPage(NFixedPage):
         self.dblLabel.setBuddy(self.dblValue)
 
         self.optionsBox = QGridLayout()
-        self.optionsBox.addWidget(self.wpLabel,  0, 0)
-        self.optionsBox.addWidget(self.wpValue,  0, 1)
+        self.optionsBox.addWidget(self.wpLabel, 0, 0)
+        self.optionsBox.addWidget(self.wpValue, 0, 1)
         self.optionsBox.addWidget(self.dblLabel, 0, 3)
         self.optionsBox.addWidget(self.dblValue, 0, 4)
-        self.optionsBox.addWidget(self.poLabel,  1, 0)
-        self.optionsBox.addWidget(self.poValue,  1, 1)
+        self.optionsBox.addWidget(self.poLabel, 1, 0)
+        self.optionsBox.addWidget(self.poValue, 1, 1)
         self.optionsBox.setHorizontalSpacing(12)
         self.optionsBox.setVerticalSpacing(4)
         self.optionsBox.setColumnStretch(2, 1)
@@ -392,14 +410,14 @@ class _ContentsPage(NFixedPage):
     def saveSettings(self) -> None:
         """Save the user GUI settings."""
         options = SHARED.project.options
-        options.setValue("GuiNovelDetails", "widthCol0",    self.tocTree.columnWidth(0))
-        options.setValue("GuiNovelDetails", "widthCol1",    self.tocTree.columnWidth(1))
-        options.setValue("GuiNovelDetails", "widthCol2",    self.tocTree.columnWidth(2))
-        options.setValue("GuiNovelDetails", "widthCol3",    self.tocTree.columnWidth(3))
-        options.setValue("GuiNovelDetails", "widthCol4",    self.tocTree.columnWidth(4))
+        options.setValue("GuiNovelDetails", "widthCol0", self.tocTree.columnWidth(0))
+        options.setValue("GuiNovelDetails", "widthCol1", self.tocTree.columnWidth(1))
+        options.setValue("GuiNovelDetails", "widthCol2", self.tocTree.columnWidth(2))
+        options.setValue("GuiNovelDetails", "widthCol3", self.tocTree.columnWidth(3))
+        options.setValue("GuiNovelDetails", "widthCol4", self.tocTree.columnWidth(4))
         options.setValue("GuiNovelDetails", "wordsPerPage", self.wpValue.value())
-        options.setValue("GuiNovelDetails", "countFrom",    self.poValue.value())
-        options.setValue("GuiNovelDetails", "clearDouble",  self.dblValue.isChecked())
+        options.setValue("GuiNovelDetails", "countFrom", self.poValue.value())
+        options.setValue("GuiNovelDetails", "clearDouble", self.dblValue.isChecked())
 
     ##
     #  Public Slots
@@ -429,9 +447,9 @@ class _ContentsPage(NFixedPage):
 
         entries = []
         for _, tLevel, tTitle, wCount in self._data:
-            pCount = math.ceil(wCount/wpPage)
+            pCount = math.ceil(wCount / wpPage)
             if dblPages:
-                pCount += pCount%2
+                pCount += pCount % 2
 
             pTotal += pCount
             entries.append((tLevel, tTitle, wCount, pCount))
@@ -447,7 +465,7 @@ class _ContentsPage(NFixedPage):
                 progText = ""
             else:
                 cPage = tPages - fstPage
-                pgProg = 100.0*(cPage - 1)/pMax if pMax > 0 else 0.0
+                pgProg = 100.0 * (cPage - 1) / pMax if pMax > 0 else 0.0
                 progPage = f"{cPage:n}"
                 progText = f"{pgProg:.1f}{nwUnicode.U_THSP}%"
 
@@ -455,17 +473,17 @@ class _ContentsPage(NFixedPage):
             if tTitle.strip() == "":
                 tTitle = self.tr("Untitled")
 
-            newItem.setData(self.C_TITLE, QtDecoration, hDec)
+            newItem.setData(self.C_TITLE, QtDecorationRole, hDec)
             newItem.setText(self.C_TITLE, tTitle)
             newItem.setText(self.C_WORDS, f"{wCount:n}")
             newItem.setText(self.C_PAGES, f"{pCount:n}")
-            newItem.setText(self.C_PAGE,  progPage)
-            newItem.setText(self.C_PROG,  progText)
+            newItem.setText(self.C_PAGE, progPage)
+            newItem.setText(self.C_PROG, progText)
 
             newItem.setTextAlignment(self.C_WORDS, QtAlignRight)
             newItem.setTextAlignment(self.C_PAGES, QtAlignRight)
-            newItem.setTextAlignment(self.C_PAGE,  QtAlignRight)
-            newItem.setTextAlignment(self.C_PROG,  QtAlignRight)
+            newItem.setTextAlignment(self.C_PAGE, QtAlignRight)
+            newItem.setTextAlignment(self.C_PROG, QtAlignRight)
 
             # Make pages and titles/partitions stand out
             if tLevel < 2:
@@ -473,7 +491,7 @@ class _ContentsPage(NFixedPage):
                 if tLevel == 0:
                     bFont.setItalic(True)
                 else:
-                    bFont.setBold(True)
+                    bFont.setWeight(QtFontSemiBold)
                     bFont.setUnderline(True)
                 newItem.setFont(self.C_TITLE, bFont)
 

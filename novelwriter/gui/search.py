@@ -2,9 +2,6 @@
 novelWriter – GUI Project Search
 ================================
 
-File History:
-Created: 2024-03-21 [2.4b1]  GuiProjectSearch
-
 This file is a part of novelWriter
 Copyright (C) 2024 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,26 +18,42 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
 
+from enum import Enum
 from time import time
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QCursor, QKeyEvent, QPalette
 from PyQt6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolBar,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QToolBar,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from novelwriter import CONFIG, SHARED
 from novelwriter.common import checkInt, qtAddAction
 from novelwriter.core.coretools import DocSearch
+from novelwriter.enum import nwDocMode
 from novelwriter.types import (
-    QtAlignMiddle, QtAlignRight, QtHeaderStretch, QtHeaderToContents,
-    QtHexArgb, QtUserRole
+    QtAlignMiddle,
+    QtAlignRight,
+    QtHeaderStretch,
+    QtHeaderToContents,
+    QtHexArgb,
+    QtModShift,
+    QtUserRole,
 )
 
 if TYPE_CHECKING:
@@ -52,14 +65,15 @@ logger = logging.getLogger(__name__)
 class GuiProjectSearch(QWidget):
     """GUI: Project Search Panel."""
 
-    C_NAME   = 0
+    C_NAME = 0
     C_RESULT = 0
-    C_COUNT  = 1
+    C_COUNT = 1
 
     D_HANDLE = QtUserRole
     D_RESULT = QtUserRole + 1
 
     selectedItemChanged = pyqtSignal(str)
+    openDocumentRequest = pyqtSignal(str, Enum, str, bool)
     openDocumentSelectRequest = pyqtSignal(str, int, int, bool)
 
     def __init__(self, parent: QWidget) -> None:
@@ -107,7 +121,7 @@ class GuiProjectSearch(QWidget):
 
         # Search Box
         self.searchAction = QAction("", self)
-        self.searchAction.setIcon(SHARED.theme.getIcon("search", "blue"))
+        self.searchAction.setIcon(SHARED.theme.getIcon("search", "apply"))
         self.searchAction.triggered.connect(self._processSearch)
 
         self.searchText = QLineEdit(self)
@@ -158,6 +172,8 @@ class GuiProjectSearch(QWidget):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
+        logger.debug("Theme Update: GuiProjectSearch")
+
         palette = QApplication.palette()
         colBase = palette.base().color().name(QtHexArgb)
         colFocus = palette.highlight().color().name(QtHexArgb)
@@ -168,10 +184,10 @@ class GuiProjectSearch(QWidget):
             f"QLineEdit:focus {{border: 1px solid {colFocus};}} "
         )
 
-        self.searchAction.setIcon(SHARED.theme.getIcon("search", "blue"))
-        self.toggleCase.setIcon(SHARED.theme.getIcon("search_case"))
-        self.toggleWord.setIcon(SHARED.theme.getIcon("search_word"))
-        self.toggleRegEx.setIcon(SHARED.theme.getIcon("search_regex"))
+        self.searchAction.setIcon(SHARED.theme.getIcon("search", "apply"))
+        self.toggleCase.setIcon(SHARED.theme.getIcon("search_case", "tool"))
+        self.toggleWord.setIcon(SHARED.theme.getIcon("search_word", "tool"))
+        self.toggleRegEx.setIcon(SHARED.theme.getIcon("search_regex", "tool"))
 
     def processReturn(self) -> None:
         """Process a return keypress forwarded from the main GUI."""
@@ -183,9 +199,10 @@ class GuiProjectSearch(QWidget):
             and (data := items[0].data(0, self.D_RESULT))
             and len(data) == 3
         ):
-            self.openDocumentSelectRequest.emit(
-                str(data[0]), checkInt(data[1], -1), checkInt(data[2], -1), False
-            )
+            if QApplication.keyboardModifiers() == QtModShift:
+                self.openDocumentRequest.emit(str(data[0]), nwDocMode.VIEW, "", True)
+            else:
+                self.openDocumentSelectRequest.emit(str(data[0]), checkInt(data[1], -1), checkInt(data[2], -1), False)
 
     def beginSearch(self, text: str = "") -> None:
         """Focus the search box and select its text, if any."""
@@ -243,7 +260,7 @@ class GuiProjectSearch(QWidget):
             start = time()
             results, capped = self._search.searchText(SHARED.mainGui.docEditor.getText())
             self._displayResultSet(SHARED.project.tree[tHandle], results, capped)
-            logger.debug("Updated search for '%s' in %.3f ms", tHandle, 1000*(time() - start))
+            logger.debug("Updated search for '%s' in %.3f ms", tHandle, 1000 * (time() - start))
 
     ##
     #  Private Slots
@@ -265,7 +282,7 @@ class GuiProjectSearch(QWidget):
                 self._search.setWholeWords(self.toggleWord.isChecked())
                 for item, results, capped in self._search.iterSearch(SHARED.project, text):
                     self._displayResultSet(item, results, capped)
-            logger.debug("Search took %.3f ms", 1000*(time() - start))
+            logger.debug("Search took %.3f ms", 1000 * (time() - start))
             self._time = time()
             QApplication.restoreOverrideCursor()
         self._blocked = False
@@ -283,9 +300,7 @@ class GuiProjectSearch(QWidget):
     def _searchResultDoubleClicked(self, item: QTreeWidgetItem, column: int) -> None:
         """Process search result double click."""
         if (data := item.data(0, self.D_RESULT)) and len(data) == 3:
-            self.openDocumentSelectRequest.emit(
-                str(data[0]), checkInt(data[1], -1), checkInt(data[2], -1), True
-            )
+            self.openDocumentSelectRequest.emit(str(data[0]), checkInt(data[1], -1), checkInt(data[2], -1), True)
 
     @pyqtSlot(bool)
     def _toggleCase(self, state: bool) -> None:
@@ -309,9 +324,7 @@ class GuiProjectSearch(QWidget):
     #  Internal Functions
     ##
 
-    def _displayResultSet(
-        self, nwItem: NWItem | None, results: list[tuple[int, int, str]], capped: bool
-    ) -> None:
+    def _displayResultSet(self, nwItem: NWItem | None, results: list[tuple[int, int, str]], capped: bool) -> None:
         """Populate the result tree."""
         if results and nwItem:
             tHandle = nwItem.itemHandle

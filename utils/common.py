@@ -18,22 +18,40 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import shutil
 import subprocess
 import sys
+import tomllib
 
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent
 SETUP_DIR = ROOT_DIR / "setup"
 
+MIN_QT_VERS = "6.4"
+MIN_PY_VERSION = "3.11"
+
+
+def extractReqs(groups: list[str]) -> list[str]:
+    """Extract dependency groups from pyproject.toml."""
+    data = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text(encoding="utf-8"))
+    reqs = []
+    if "app" in groups or "all" in groups:
+        reqs += data["project"]["dependencies"]
+    for group in data["dependency-groups"]:
+        if group in groups or "all" in groups:
+            reqs += [d for d in data["dependency-groups"][group] if isinstance(d, str)]
+    return reqs
+
 
 def extractVersion(beQuiet: bool = False) -> tuple[str, str, str]:
     """Extract the novelWriter version number without having to import
     anything else from the main package.
     """
+
     def getValue(text: str) -> str:
         bits = text.partition("=")
         return bits[2].strip().strip('"')
@@ -72,6 +90,21 @@ def stripVersion(version: str) -> str:
         return version
 
 
+def formatVersion(value: str) -> str:
+    """Format a version number into a more human readable form."""
+    major, _, version = value.partition(".")
+    prefix = "20" if int(major) >= 20 else ""
+    if "." in version:
+        version = version.replace(".", " Patch ")
+    elif "a" in version:
+        version = version.replace("a", " Alpha ")
+    elif "b" in version:
+        version = version.replace("b", " Beta ")
+    elif "rc" in version:
+        version = version.replace("rc", " RC ")
+    return f"{prefix}{major}.{version}" if major and version else ""
+
+
 def copySourceCode(dst: Path) -> None:
     """Copy the novelwriter source tree to path."""
     src = ROOT_DIR / "novelwriter"
@@ -92,17 +125,15 @@ def copySourceCode(dst: Path) -> None:
 
 def copyPackageFiles(dst: Path, oldLicense: bool = False) -> None:
     """Copy files needed for packaging."""
-    copyFiles = ["LICENSE.md", "setup/LICENSE-Apache-2.0.txt", "CREDITS.md", "pyproject.toml"]
+    copyFiles = [
+        ROOT_DIR / "LICENSE.md",
+        SETUP_DIR / "LICENSE-Apache-2.0.txt",
+        ROOT_DIR / "CREDITS.md",
+        ROOT_DIR / "pyproject.toml",
+    ]
     for copyFile in copyFiles:
-        shutil.copyfile(copyFile, dst / copyFile)
+        shutil.copyfile(copyFile, dst / copyFile.name)
         print("Copied:", copyFile, flush=True)
-
-    writeFile(dst / "MANIFEST.in", (
-        "include LICENSE.md\n"
-        "include setup/LICENSE-Apache-2.0.txt\n"
-        "include CREDITS.md\n"
-        "recursive-include novelwriter/assets *\n"
-    ))
 
     text = readFile(ROOT_DIR / "pyproject.toml")
     text = text.replace("setup/description_pypi.md", "data/description_short.txt")
@@ -234,13 +265,13 @@ def removeRedundantQt(qtBase: Path) -> None:
     print("Deleting redundant files ...")
 
     pyQt6Dir = qtBase / "PyQt6"
-    bindDir  = qtBase / "PyQt6" / "bindings"
-    qt6Dir   = qtBase / "PyQt6" / "Qt6"
-    binDir   = qtBase / "PyQt6" / "Qt6" / "bin"
-    libDir   = qtBase / "PyQt6" / "Qt6" / "lib"
-    plugDir  = qtBase / "PyQt6" / "Qt6" / "plugins"
-    qmDir    = qtBase / "PyQt6" / "Qt6" / "translations"
-    dictDir  = qtBase / "enchant" / "data" / "mingw64" / "share" / "enchant" / "hunspell"
+    bindDir = qtBase / "PyQt6" / "bindings"
+    qt6Dir = qtBase / "PyQt6" / "Qt6"
+    binDir = qtBase / "PyQt6" / "Qt6" / "bin"
+    libDir = qtBase / "PyQt6" / "Qt6" / "lib"
+    plugDir = qtBase / "PyQt6" / "Qt6" / "plugins"
+    qmDir = qtBase / "PyQt6" / "Qt6" / "translations"
+    dictDir = qtBase / "enchant" / "data" / "mingw64" / "share" / "enchant" / "hunspell"
 
     # Prune Dictionaries
     if dictDir.exists():
@@ -255,8 +286,13 @@ def removeRedundantQt(qtBase: Path) -> None:
 
     # Delete Modules
     modules = [
-        "Qt6Qml", "Qt6Quick", "Qt6Bluetooth", "Qt6Nfc",
-        "Qt6Sensors", "Qt6SerialPort", "Qt6Test",
+        "Qt6Qml",
+        "Qt6Quick",
+        "Qt6Bluetooth",
+        "Qt6Nfc",
+        "Qt6Sensors",
+        "Qt6SerialPort",
+        "Qt6Test",
     ]
     modules.extend([x.replace("Qt6", "Qt") for x in modules])
     modules.extend([f"lib{x}" for x in modules])

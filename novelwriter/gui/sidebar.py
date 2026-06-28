@@ -2,9 +2,6 @@
 novelWriter – GUI Main Window SideBar
 =====================================
 
-File History:
-Created: 2022-05-10 [2.0rc1] GuiSideBar
-
 This file is a part of novelWriter
 Copyright (C) 2022 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -21,13 +18,14 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QEvent, QPoint, QSize, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QPoint, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QMenu, QVBoxLayout, QWidget
 
 from novelwriter import CONFIG, SHARED
@@ -56,8 +54,7 @@ class GuiSideBar(QWidget):
 
         self.mainGui = mainGui
 
-        iPx = int(1.25*SHARED.theme.baseButtonHeight)
-        iSz = QSize(iPx, iPx)
+        iSz = SHARED.theme.sidebarIconSize
 
         self.setContentsMargins(0, 0, 0, 0)
         self.installEventFilter(StatusTipFilter(self.mainGui))
@@ -92,7 +89,7 @@ class GuiSideBar(QWidget):
         self.tbStats.clicked.connect(self.mainGui.showWritingStatsDialog)
 
         self.tbBuild = NIconToolButton(self, iSz)
-        self.tbBuild.setToolTip("{0} [F5]".format(self.tr("Build Manuscript")))
+        self.tbBuild.setToolTip("{0} [F5]".format(self.tr("Manuscript Build")))
         self.tbBuild.clicked.connect(self.mainGui.showBuildManuscriptDialog)
 
         # Settings Menu
@@ -129,8 +126,9 @@ class GuiSideBar(QWidget):
 
     def updateTheme(self) -> None:
         """Initialise GUI elements that depend on specific settings."""
-        buttonStyle = SHARED.theme.getStyleSheet(STYLES_BIG_TOOLBUTTON)
+        logger.debug("Theme Update: GuiSideBar")
 
+        buttonStyle = SHARED.theme.getStyleSheet(STYLES_BIG_TOOLBUTTON)
         self.tbProject.setStyleSheet(buttonStyle)
         self.tbNovel.setStyleSheet(buttonStyle)
         self.tbSearch.setStyleSheet(buttonStyle)
@@ -141,14 +139,14 @@ class GuiSideBar(QWidget):
         self.tbTheme.setStyleSheet(buttonStyle)
         self.tbSettings.setStyleSheet(buttonStyle)
 
-        self.tbProject.setThemeIcon("sb_project")
-        self.tbNovel.setThemeIcon("sb_novel")
-        self.tbSearch.setThemeIcon("sb_search")
-        self.tbOutline.setThemeIcon("sb_outline")
-        self.tbBuild.setThemeIcon("sb_build")
-        self.tbDetails.setThemeIcon("sb_details")
-        self.tbStats.setThemeIcon("sb_stats")
-        self.tbSettings.setThemeIcon("settings")
+        self.tbProject.setThemeIcon("sb_project", "sidebar")
+        self.tbNovel.setThemeIcon("sb_novel", "sidebar")
+        self.tbSearch.setThemeIcon("sb_search", "sidebar")
+        self.tbOutline.setThemeIcon("sb_outline", "sidebar")
+        self.tbBuild.setThemeIcon("sb_build", "sidebar")
+        self.tbDetails.setThemeIcon("sb_details", "sidebar")
+        self.tbStats.setThemeIcon("sb_stats", "sidebar")
+        self.tbSettings.setThemeIcon("settings", "sidebar")
 
         self._setThemeModeIcon()
 
@@ -175,16 +173,14 @@ class GuiSideBar(QWidget):
 
     def _setThemeModeIcon(self) -> None:
         """Set the theme button icon."""
-        self.tbTheme.setThemeIcon(nwLabels.THEME_MODE_ICON[CONFIG.themeMode])
+        self.tbTheme.setThemeIcon(nwLabels.THEME_MODE_ICON[CONFIG.themeMode], "sidebar")
         self.tbTheme.setToolTip(trConst(nwLabels.THEME_MODE_LABEL[CONFIG.themeMode]))
 
 
 class _PopRightMenu(QMenu):
-
     def event(self, event: QEvent) -> bool:
         """Overload the show event and move the menu popup location."""
-        if event.type() == QEvent.Type.Show:
-            if isinstance(parent := self.parent(), QWidget):
-                offset = QPoint(parent.width(), parent.height() - self.height())
-                self.move(parent.mapToGlobal(offset))
+        if event.type() == QEvent.Type.Show and isinstance(parent := self.parent(), QWidget):
+            offset = QPoint(parent.width(), parent.height() - self.height())
+            self.move(parent.mapToGlobal(offset))
         return super().event(event)

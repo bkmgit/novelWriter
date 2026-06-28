@@ -2,10 +2,6 @@
 novelWriter – GUI Syntax Highlighter
 ====================================
 
-File History:
-Created: 2019-04-06 [0.0.1] GuiDocHighlighter
-Created: 2023-09-10 [2.2b1] TextBlockData
-
 This file is a part of novelWriter
 Copyright (C) 2019 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -22,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
@@ -30,18 +27,15 @@ import re
 from time import time
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (
-    QBrush, QColor, QFont, QSyntaxHighlighter, QTextBlockUserData,
-    QTextCharFormat, QTextDocument
-)
+from PyQt6.QtGui import QBrush, QColor, QSyntaxHighlighter, QTextBlockUserData, QTextCharFormat, QTextDocument
 
 from novelwriter import CONFIG, SHARED
 from novelwriter.common import checkInt, utf16CharMap
 from novelwriter.constants import nwStyles, nwUnicode
 from novelwriter.enum import nwComment
-from novelwriter.text.comments import processComment
+from novelwriter.text.formats import processComment
 from novelwriter.text.patterns import REGEX_PATTERNS, DialogParser
-from novelwriter.types import QtTextUserProperty
+from novelwriter.types import QtFontBold, QtTextUserProperty
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +44,9 @@ RX_WORDS = REGEX_PATTERNS.wordSplit
 RX_FMT_SC = REGEX_PATTERNS.shortcodePlain
 RX_FMT_SV = REGEX_PATTERNS.shortcodeValue
 
-BLOCK_NONE  = 0
-BLOCK_TEXT  = 1
-BLOCK_META  = 2
+BLOCK_NONE = 0
+BLOCK_TEXT = 1
+BLOCK_META = 2
 BLOCK_TITLE = 4
 
 
@@ -60,8 +54,16 @@ class GuiDocHighlighter(QSyntaxHighlighter):
     """GUI: Editor Syntax Highlighter."""
 
     __slots__ = (
-        "_cmnRules", "_dialogParser", "_hStyles", "_isInactive", "_isNovel",
-        "_minRules", "_spellCheck", "_spellErr", "_tHandle", "_txtRules",
+        "_cmnRules",
+        "_dialogParser",
+        "_hStyles",
+        "_isInactive",
+        "_isNovel",
+        "_minRules",
+        "_spellCheck",
+        "_spellErr",
+        "_tHandle",
+        "_txtRules",
     )
 
     def __init__(self, document: QTextDocument) -> None:
@@ -94,39 +96,43 @@ class GuiDocHighlighter(QSyntaxHighlighter):
         syntax = SHARED.theme.syntaxTheme
 
         colEmph = syntax.emph if CONFIG.highlightEmph else None
-        colBreak = QColor(syntax.emph)
-        colBreak.setAlpha(64)
+        fmtCodes = "dot" if CONFIG.dottedModCodes else ""
+
+        h1Size = nwStyles.H_SIZES[1] if CONFIG.scaleHeadings else None
+        h2Size = nwStyles.H_SIZES[2] if CONFIG.scaleHeadings else None
+        h3Size = nwStyles.H_SIZES[3] if CONFIG.scaleHeadings else None
+        h4Size = nwStyles.H_SIZES[4] if CONFIG.scaleHeadings else None
 
         # Create Character Formats
-        self._addCharFormat("text",      syntax.text)
-        self._addCharFormat("header1",   syntax.head, "b", nwStyles.H_SIZES[1])
-        self._addCharFormat("header2",   syntax.head, "b", nwStyles.H_SIZES[2])
-        self._addCharFormat("header3",   syntax.head, "b", nwStyles.H_SIZES[3])
-        self._addCharFormat("header4",   syntax.head, "b", nwStyles.H_SIZES[4])
-        self._addCharFormat("head1h",    syntax.headH, "b", nwStyles.H_SIZES[1])
-        self._addCharFormat("head2h",    syntax.headH, "b", nwStyles.H_SIZES[2])
-        self._addCharFormat("head3h",    syntax.headH, "b", nwStyles.H_SIZES[3])
-        self._addCharFormat("head4h",    syntax.headH, "b", nwStyles.H_SIZES[4])
-        self._addCharFormat("bold",      colEmph, "b")
-        self._addCharFormat("italic",    colEmph, "i")
-        self._addCharFormat("strike",    syntax.hidden, "s")
-        self._addCharFormat("mark",      syntax.mark, "bg")
-        self._addCharFormat("mspaces",   syntax.error, "err")
-        self._addCharFormat("nobreak",   colBreak, "bg")
+        self._addCharFormat("text", syntax.text)
+        self._addCharFormat("header1", syntax.head, "b", h1Size)
+        self._addCharFormat("header2", syntax.head, "b", h2Size)
+        self._addCharFormat("header3", syntax.head, "b", h3Size)
+        self._addCharFormat("header4", syntax.head, "b", h4Size)
+        self._addCharFormat("head1h", syntax.headH, "b", h1Size)
+        self._addCharFormat("head2h", syntax.headH, "b", h2Size)
+        self._addCharFormat("head3h", syntax.headH, "b", h3Size)
+        self._addCharFormat("head4h", syntax.headH, "b", h4Size)
+        self._addCharFormat("bold", colEmph, "b")
+        self._addCharFormat("italic", colEmph, "i")
+        self._addCharFormat("strike", syntax.hidden, "s")
+        self._addCharFormat("mark", syntax.mark, "bg")
+        self._addCharFormat("mspaces", syntax.error, "err")
+        self._addCharFormat("nobreak", syntax.space, "bg")
         self._addCharFormat("altdialog", syntax.dialA)
-        self._addCharFormat("dialog",    syntax.dialN)
-        self._addCharFormat("replace",   syntax.repTag)
-        self._addCharFormat("hidden",    syntax.hidden)
-        self._addCharFormat("markup",    syntax.hidden)
-        self._addCharFormat("link",      syntax.link, "u")
-        self._addCharFormat("note",      syntax.note)
-        self._addCharFormat("code",      syntax.code)
-        self._addCharFormat("keyword",   syntax.key)
-        self._addCharFormat("tag",       syntax.tag, "u")
-        self._addCharFormat("modifier",  syntax.mod)
-        self._addCharFormat("value",     syntax.val)
-        self._addCharFormat("optional",  syntax.opt)
-        self._addCharFormat("invalid",   None, "err")
+        self._addCharFormat("dialog", syntax.dialN)
+        self._addCharFormat("replace", syntax.repTag, fmtCodes)
+        self._addCharFormat("hidden", syntax.hidden)
+        self._addCharFormat("markup", syntax.hidden)
+        self._addCharFormat("link", syntax.link, "u")
+        self._addCharFormat("note", syntax.note)
+        self._addCharFormat("code", syntax.code, fmtCodes)
+        self._addCharFormat("keyword", syntax.key)
+        self._addCharFormat("tag", syntax.tag, "u")
+        self._addCharFormat("modifier", syntax.mod, fmtCodes)
+        self._addCharFormat("value", syntax.val, fmtCodes)
+        self._addCharFormat("optional", syntax.opt)
+        self._addCharFormat("invalid", None, "err")
 
         # Cache Spell Error Format
         self._spellErr = QTextCharFormat()
@@ -140,7 +146,7 @@ class GuiDocHighlighter(QSyntaxHighlighter):
 
         # Multiple or Trailing Spaces
         if CONFIG.showMultiSpaces:
-            rxRule = re.compile(r"\s{2,}")
+            rxRule = re.compile(r"[ ]{2,}")
             hlRule = {
                 0: self._hStyles["mspaces"],
             }
@@ -287,7 +293,7 @@ class GuiDocHighlighter(QSyntaxHighlighter):
                 block = document.findBlockByNumber(i)
                 if block.userState() & cType > 0:
                     self.rehighlightBlock(block)
-            logger.debug("Document highlighted in %.3f ms" % (1000*(time() - tStart)))
+            logger.debug("Document highlighted in %.3f ms", (1000 * (time() - tStart)))
 
     ##
     #  Highlight Block
@@ -405,8 +411,8 @@ class GuiDocHighlighter(QSyntaxHighlighter):
                 value = checkInt(check[8:-1], 0)
                 style = "value" if value > 0 else "invalid"
                 self.setFormat(0, 8, self._hStyles["code"])
-                self.setFormat(8, blockLen-10, self._hStyles[style])
-                self.setFormat(blockLen-2, blockLen, self._hStyles["code"])
+                self.setFormat(8, blockLen - 10, self._hStyles[style])
+                self.setFormat(blockLen - 2, blockLen, self._hStyles["code"])
                 return
 
         else:  # Text Paragraph
@@ -434,7 +440,7 @@ class GuiDocHighlighter(QSyntaxHighlighter):
                                 cFmt = self.format(m)
                                 if not cFmt.property(QtTextUserProperty):
                                     cFmt.merge(hFmt)
-                                    self.setFormat(m, utf16Map[x+1] - m, cFmt)
+                                    self.setFormat(m, utf16Map[x + 1] - m, cFmt)
             else:
                 for rX, hRule in rules:
                     for res in re.finditer(rX, text[offset:]):
@@ -467,8 +473,11 @@ class GuiDocHighlighter(QSyntaxHighlighter):
     ##
 
     def _addCharFormat(
-        self, name: str, color: QColor | None = None,
-        style: str | None = None, size: float | None = None
+        self,
+        name: str,
+        color: QColor | None = None,
+        style: str | None = None,
+        size: float | None = None,
     ) -> None:
         """Generate a highlighter character format."""
         charFormat = QTextCharFormat()
@@ -478,13 +487,15 @@ class GuiDocHighlighter(QSyntaxHighlighter):
         if style:
             styles = style.split(",")
             if "b" in styles:
-                charFormat.setFontWeight(QFont.Weight.Bold)
+                charFormat.setFontWeight(QtFontBold)
             if "i" in styles:
                 charFormat.setFontItalic(True)
             if "u" in styles:
                 charFormat.setFontUnderline(True)
             if "s" in styles:
                 charFormat.setFontStrikeOut(True)
+            if "dot" in styles:
+                charFormat.setUnderlineStyle(QTextCharFormat.UnderlineStyle.DotLine)
             if "err" in styles:
                 charFormat.setUnderlineColor(SHARED.theme.syntaxTheme.error)
                 charFormat.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
@@ -496,7 +507,7 @@ class GuiDocHighlighter(QSyntaxHighlighter):
             charFormat.setForeground(color)
 
         if size:
-            charFormat.setFontPointSize(round(size*CONFIG.textFont.pointSize()))
+            charFormat.setFontPointSize(round(size * CONFIG.textFont.pointSize()))
 
         self._hStyles[name] = charFormat
 
@@ -535,14 +546,14 @@ class TextBlockData(QTextBlockUserData):
             for regEx in [RX_FMT_SC, RX_FMT_SV]:
                 for res in regEx.finditer(text, offset):
                     if (s := res.start(0)) >= 0 and (e := res.end(0)) >= 0:
-                        pad = " "*(e - s)
+                        pad = " " * (e - s)
                         text = f"{text[:s]}{pad}{text[e:]}"
 
         if "http" in text:
             # Strip URLs
             for res in RX_URL.finditer(text, offset):
                 if (s := res.start(0)) >= 0 and (e := res.end(0)) >= 0:
-                    pad = " "*(e - s)
+                    pad = " " * (e - s)
                     text = f"{text[:s]}{pad}{text[e:]}"
                     self._metaData.append((s, e, res.group(0), "url"))
 

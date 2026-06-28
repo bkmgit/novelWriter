@@ -18,16 +18,19 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import QWidget
 
+from novelwriter.extensions.modified import NPushButton
+
 
 class MockGuiMain(QWidget):
-
     def __init__(self):
         super().__init__()
         self.mainStatus = MagicMock()
@@ -56,9 +59,9 @@ class MockGuiMain(QWidget):
 
 
 class MockTheme:
-
     def __init__(self):
         self.baseIconHeight = 20
+        self.fontPixelSize = 20
         self.guiFont = QFont()
         self.guiFontB = QFont()
         self.guiFontBU = QFont()
@@ -72,6 +75,9 @@ class MockTheme:
     def getHeaderDecoration(self, *a) -> QPixmap:
         return QPixmap()
 
+    def getStandardButton(self, *a) -> NPushButton:
+        return NPushButton(None, "", QSize(1, 1))  # type: ignore
+
     def getIcon(self, *a) -> QIcon:
         return QIcon()
 
@@ -80,7 +86,6 @@ class MockTheme:
 
 
 class MockApp:
-
     def __init__(self):
         return
 
@@ -91,6 +96,7 @@ class MockApp:
 # Error Functions
 # ===============
 # Mock functions that will raise errors instead.
+
 
 def causeOSError(*args, **kwargs):
     """Raise an OSError."""

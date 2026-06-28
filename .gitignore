@@ -41,8 +41,8 @@ __pycache__
 /novelwriter/assets/sample.zip
 /sample/cache
 /sample/meta
-*.bak
-*.lock
+/sample/**/*.bak
+/sample/*.lock
 ToC.txt
 
 # PyTest

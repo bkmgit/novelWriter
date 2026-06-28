@@ -2,12 +2,6 @@
 novelWriter – GUI Document Viewer
 =================================
 
-File History:
-Created: 2019-05-10 [0.0.1] GuiDocViewer
-Created: 2020-04-25 [0.4.5] GuiDocViewHeader
-Created: 2020-06-09 [0.8]   GuiDocViewFooter
-Created: 2020-09-08 [1.0b1] GuiDocViewHistory
-
 This file is a part of novelWriter
 Copyright (C) 2019 Veronica Berglyd Olsen and novelWriter contributors
 
@@ -24,6 +18,7 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """  # noqa
+
 from __future__ import annotations
 
 import logging
@@ -32,28 +27,39 @@ from enum import Enum
 
 from PyQt6.QtCore import QPoint, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
-    QCursor, QDesktopServices, QDragEnterEvent, QDragMoveEvent, QDropEvent,
-    QMouseEvent, QPalette, QResizeEvent, QTextCursor
+    QCursor,
+    QDesktopServices,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QMouseEvent,
+    QPalette,
+    QResizeEvent,
+    QTextCursor,
 )
-from PyQt6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QMenu, QTextBrowser, QToolButton,
-    QWidget
-)
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QMenu, QTextBrowser, QToolButton, QWidget
 
 from novelwriter import CONFIG, SHARED
 from novelwriter.common import decodeMimeHandles, qtAddAction, qtLambda
 from novelwriter.constants import nwConst, nwStyles, nwUnicode
-from novelwriter.enum import nwChange, nwComment, nwDocAction, nwDocMode, nwItemType
+from novelwriter.enum import nwChange, nwComment, nwDocAction, nwDocMode, nwItemType, nwState
 from novelwriter.error import logException
-from novelwriter.extensions.configlayout import NColorLabel
+from novelwriter.extensions.configlayout import NPathColorLabel
 from novelwriter.extensions.eventfilters import WheelEventFilter
 from novelwriter.extensions.modified import NIconToolButton
 from novelwriter.formats.shared import TextDocumentTheme
 from novelwriter.formats.toqdoc import ToQTextDocument
 from novelwriter.gui.theme import STYLES_MIN_TOOLBUTTON
 from novelwriter.types import (
-    QtAlignCenterTop, QtKeepAnchor, QtMouseLeft, QtMoveAnchor,
-    QtScrollAlwaysOff, QtScrollAsNeeded
+    QtAlignCenterTop,
+    QtAlignMiddle,
+    QtKeepAnchor,
+    QtMoveAnchor,
+    QtScrollAlwaysOff,
+    QtScrollAsNeeded,
+    QtSelectBlock,
+    QtSelectDocument,
+    QtSelectWord,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,10 +94,10 @@ class GuiDocViewer(QTextBrowser):
         self.setFrameStyle(QFrame.Shape.NoFrame)
 
         # Document Header and Footer
-        self.docHeader  = GuiDocViewHeader(self)
-        self.docFooter  = GuiDocViewFooter(self)
+        self.docHeader = GuiDocViewHeader(self)
+        self.docFooter = GuiDocViewFooter(self)
         self.docHistory = GuiDocViewHistory(self)
-        self.stickyRef  = False
+        self.stickyRef = False
 
         # Signals
         self.anchorClicked.connect(self._linkClicked)
@@ -140,6 +146,7 @@ class GuiDocViewer(QTextBrowser):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
+        logger.debug("Theme Update: GuiDocViewer")
         self.docHeader.updateTheme()
         self.docFooter.updateTheme()
 
@@ -168,18 +175,18 @@ class GuiDocViewer(QTextBrowser):
             self.docFooter.matchColors()
 
         # Update theme colours
-        self._docTheme.text      = syntax.text
+        self._docTheme.text = syntax.text
         self._docTheme.highlight = syntax.mark
-        self._docTheme.head      = syntax.head
-        self._docTheme.link      = syntax.link
-        self._docTheme.comment   = syntax.hidden
-        self._docTheme.note      = syntax.note
-        self._docTheme.code      = syntax.code
-        self._docTheme.modifier  = syntax.mod
-        self._docTheme.keyword   = syntax.key
-        self._docTheme.tag       = syntax.tag
-        self._docTheme.optional  = syntax.opt
-        self._docTheme.dialog    = syntax.dialN
+        self._docTheme.head = syntax.head
+        self._docTheme.link = syntax.link
+        self._docTheme.comment = syntax.hidden
+        self._docTheme.note = syntax.note
+        self._docTheme.code = syntax.code
+        self._docTheme.modifier = syntax.mod
+        self._docTheme.keyword = syntax.key
+        self._docTheme.tag = syntax.tag
+        self._docTheme.optional = syntax.opt
+        self._docTheme.dialog = syntax.dialN
         self._docTheme.altdialog = syntax.dialA
 
         # Set default text margins
@@ -217,7 +224,7 @@ class GuiDocViewer(QTextBrowser):
         sPos = vBar.value() if vBar else 0
 
         qDoc = ToQTextDocument(SHARED.project)
-        qDoc.setJustify(CONFIG.doJustify)
+        qDoc.setJustify(CONFIG.doJustify, False)
         qDoc.setDialogHighlight(True)
         qDoc.setTextFont(CONFIG.textFont)
         qDoc.setTheme(self._docTheme)
@@ -260,10 +267,12 @@ class GuiDocViewer(QTextBrowser):
         self._docHandle = tHandle
         SHARED.project.data.setLastHandle(tHandle, "viewer")
         self.docHeader.setHandle(tHandle)
-        self.docHeader.setOutline({
-            sTitle: (hItem.title, nwStyles.H_LEVEL.get(hItem.level, 0))
-            for sTitle, hItem in SHARED.project.index.iterItemHeadings(tHandle)
-        })
+        self.docHeader.setOutline(
+            {
+                sTitle: (hItem.title, nwStyles.H_LEVEL.get(hItem.level, 0))
+                for sTitle, hItem in SHARED.project.index.iterItemHeadings(tHandle)
+            }
+        )
         self.updateDocMargins()
 
         QApplication.restoreOverrideCursor()
@@ -282,16 +291,14 @@ class GuiDocViewer(QTextBrowser):
         if self._docHandle is None:
             logger.error("No document open")
             return False
-        if action == nwDocAction.CUT:
-            self.copy()
-        elif action == nwDocAction.COPY:
+        if action in (nwDocAction.CUT, nwDocAction.COPY):
             self.copy()
         elif action == nwDocAction.SEL_ALL:
-            self._makeSelection(QTextCursor.SelectionType.Document)
+            self._makeSelection(QtSelectDocument)
         elif action == nwDocAction.SEL_PARA:
-            self._makeSelection(QTextCursor.SelectionType.BlockUnderCursor)
+            self._makeSelection(QtSelectBlock)
         else:
-            logger.debug("Unknown or unsupported document action '%s'", str(action))
+            logger.debug("Unknown or unsupported document action '%s'", action)
             return False
         return True
 
@@ -318,10 +325,10 @@ class GuiDocViewer(QTextBrowser):
         tM = cM
         if CONFIG.textWidth > 0:
             tW = CONFIG.getTextWidth()
-            tM = max((wW - sW - tW)//2, cM)
+            tM = max((wW - sW - tW) // 2, cM)
 
         tB = self.frameWidth()
-        tW = wW - 2*tB - sW
+        tW = wW - 2 * tB - sW
         tH = self.docHeader.height()
         fH = self.docFooter.height()
         fY = wH - fH - tB - sH
@@ -400,14 +407,10 @@ class GuiDocViewer(QTextBrowser):
         action.triggered.connect(qtLambda(self.docAction, nwDocAction.SEL_ALL))
 
         action = qtAddAction(ctxMenu, self.tr("Select Word"))
-        action.triggered.connect(qtLambda(
-            self._makePosSelection, QTextCursor.SelectionType.WordUnderCursor, point
-        ))
+        action.triggered.connect(qtLambda(self._makePosSelection, QtSelectWord, point))
 
         action = qtAddAction(ctxMenu, self.tr("Select Paragraph"))
-        action.triggered.connect(qtLambda(
-            self._makePosSelection, QTextCursor.SelectionType.BlockUnderCursor, point
-        ))
+        action.triggered.connect(qtLambda(self._makePosSelection, QtSelectBlock, point))
 
         # Open the context menu
         if viewport := self.viewport():
@@ -450,9 +453,8 @@ class GuiDocViewer(QTextBrowser):
     def dropEvent(self, event: QDropEvent) -> None:
         """Overload drop event to handle dragged items."""
         if (data := event.mimeData()) and data.hasFormat(nwConst.MIME_HANDLE):
-            if handles := decodeMimeHandles(data):
-                if SHARED.project.tree.checkType(handles[0], nwItemType.FILE):
-                    self.openDocumentRequest.emit(handles[0], nwDocMode.VIEW, "", True)
+            if (handles := decodeMimeHandles(data)) and SHARED.project.tree.checkType(handles[0], nwItemType.FILE):
+                self.openDocumentRequest.emit(handles[0], nwDocMode.VIEW, "", True)
         else:
             super().dropEvent(event)
 
@@ -466,14 +468,14 @@ class GuiDocViewer(QTextBrowser):
         cursor.clearSelection()
         cursor.select(selType)
 
-        if selType == QTextCursor.SelectionType.BlockUnderCursor:
+        if selType == QtSelectBlock:
             # This selection mode also selects the preceding paragraph
             # separator, which we want to avoid.
             posS = cursor.selectionStart()
             posE = cursor.selectionEnd()
             selTxt = cursor.selectedText()
             if selTxt.startswith(nwUnicode.U_PSEP):
-                cursor.setPosition(posS+1, QtMoveAnchor)
+                cursor.setPosition(posS + 1, QtMoveAnchor)
                 cursor.setPosition(posE, QtKeepAnchor)
 
         self.setTextCursor(cursor)
@@ -511,10 +513,9 @@ class GuiDocViewHistory:
         history, but only if the document is different than the current
         active entry. Any further entries are truncated.
         """
-        if self._currPos >= 0 and self._currPos < len(self._navHistory):
-            if tHandle == self._navHistory[self._currPos]:
-                logger.debug("Not updating view hsitory")
-                return False
+        if self._currPos >= 0 and self._currPos < len(self._navHistory) and tHandle == self._navHistory[self._currPos]:
+            logger.debug("Not updating view hsitory")
+            return False
 
         self._truncateHistory(self._currPos)
 
@@ -576,8 +577,8 @@ class GuiDocViewHistory:
         enforces a maximum length of the navigation history to 20.
         """
         nSkip = 1 if atPos > 19 else 0
-        self._navHistory = self._navHistory[nSkip:atPos + 1]
-        self._posHistory = self._posHistory[nSkip:atPos + 1]
+        self._navHistory = self._navHistory[nSkip : atPos + 1]
+        self._posHistory = self._posHistory[nSkip : atPos + 1]
         self._currPos -= nSkip
         self._prevPos -= nSkip
 
@@ -588,7 +589,7 @@ class GuiDocViewHistory:
         if CONFIG.isDebug:  # pragma: no cover
             for i, (h, p) in enumerate(zip(self._navHistory, self._posHistory, strict=False)):
                 a = ">" if i == self._currPos else " "
-                logger.debug(f"History {i + 1:02d}: {a} {h:13s} [x:{p}]")
+                logger.debug(f"History {i + 1:02d}: {a} {h:13s} [x:{p}]")  # noqa: G004
 
 
 class GuiDocViewHeader(QWidget):
@@ -609,19 +610,20 @@ class GuiDocViewHeader(QWidget):
         self._docHandle = None
         self._docOutline: dict[str, tuple[str, int]] = {}
 
-        iPx = SHARED.theme.baseIconHeight
         iSz = SHARED.theme.baseIconSize
+        fPx = SHARED.theme.fontPixelSize
 
         # Main Widget Settings
         self.setAutoFillBackground(True)
 
         # Title Label
-        self.itemTitle = NColorLabel("", self, faded=SHARED.theme.fadedText)
+        self.itemTitle = NPathColorLabel("", self, faded=SHARED.theme.fadedText)
         self.itemTitle.setMargin(0)
         self.itemTitle.setContentsMargins(0, 0, 0, 0)
         self.itemTitle.setAutoFillBackground(True)
         self.itemTitle.setAlignment(QtAlignCenterTop)
-        self.itemTitle.setFixedHeight(iPx)
+        self.itemTitle.setFixedHeight(fPx)
+        self.itemTitle.linkActivated.connect(self._processLabelLink)
 
         # Other Widgets
         self.outlineMenu = QMenu(self)
@@ -659,15 +661,15 @@ class GuiDocViewHeader(QWidget):
 
         # Assemble Layout
         self.outerBox = QHBoxLayout()
-        self.outerBox.addWidget(self.outlineButton, 0)
-        self.outerBox.addWidget(self.backButton, 0)
-        self.outerBox.addWidget(self.forwardButton, 0)
+        self.outerBox.addWidget(self.outlineButton, 0, QtAlignMiddle)
+        self.outerBox.addWidget(self.backButton, 0, QtAlignMiddle)
+        self.outerBox.addWidget(self.forwardButton, 0, QtAlignMiddle)
         self.outerBox.addSpacing(4)
-        self.outerBox.addWidget(self.itemTitle, 1)
+        self.outerBox.addWidget(self.itemTitle, 1, QtAlignMiddle)
         self.outerBox.addSpacing(4)
-        self.outerBox.addWidget(self.editButton, 0)
-        self.outerBox.addWidget(self.refreshButton, 0)
-        self.outerBox.addWidget(self.closeButton, 0)
+        self.outerBox.addWidget(self.editButton, 0, QtAlignMiddle)
+        self.outerBox.addWidget(self.refreshButton, 0, QtAlignMiddle)
+        self.outerBox.addWidget(self.closeButton, 0, QtAlignMiddle)
         self.outerBox.setSpacing(0)
 
         self.setLayout(self.outerBox)
@@ -676,7 +678,7 @@ class GuiDocViewHeader(QWidget):
         # This is needed for high DPI systems. See issue #499.
         self.setContentsMargins(0, 0, 0, 0)
         self.outerBox.setContentsMargins(4, 4, 4, 4)
-        self.setMinimumHeight(iPx + 8)
+        self.setMinimumHeight(fPx + 4)
 
         self.updateFont()
         self.updateTheme()
@@ -713,11 +715,9 @@ class GuiDocViewHeader(QWidget):
                     entries.append((title, text, level))
                     minLevel = min(minLevel, level)
             for title, text, level in entries[:30]:
-                indent = "    "*(level - minLevel)
+                indent = "    " * (level - minLevel)
                 action = qtAddAction(self.outlineMenu, f"{indent}{text}")
-                action.triggered.connect(
-                    lambda _, title=title: self.docViewer.navigateTo(f"#{tHandle}:{title}")
-                )
+                action.triggered.connect(lambda _, title=title: self.docViewer.navigateTo(f"#{tHandle}:{title}"))
             self._docOutline = data
 
     def updateFont(self) -> None:
@@ -727,12 +727,14 @@ class GuiDocViewHeader(QWidget):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
-        self.outlineButton.setThemeIcon("list", "blue")
-        self.backButton.setThemeIcon("chevron_left", "blue")
-        self.forwardButton.setThemeIcon("chevron_right", "blue")
-        self.editButton.setThemeIcon("edit", "green")
-        self.refreshButton.setThemeIcon("refresh", "green")
-        self.closeButton.setThemeIcon("close", "red")
+        logger.debug("Theme Update: GuiDocViewHeader")
+
+        self.outlineButton.setThemeIcon("list", "action")
+        self.backButton.setThemeIcon("chevron_left", "action")
+        self.forwardButton.setThemeIcon("chevron_right", "action")
+        self.editButton.setThemeIcon("edit", "change")
+        self.refreshButton.setThemeIcon("refresh", "change")
+        self.closeButton.setThemeIcon("close", "reject")
 
         buttonStyle = SHARED.theme.getStyleSheet(STYLES_MIN_TOOLBUTTON)
         self.outlineButton.setStyleSheet(buttonStyle)
@@ -755,25 +757,23 @@ class GuiDocViewHeader(QWidget):
         palette.setColor(QPalette.ColorRole.Text, syntax.text)
         self.setPalette(palette)
         self.itemTitle.setTextColors(
-            color=palette.windowText().color(), faded=SHARED.theme.fadedText
+            color=palette.windowText().color(),
+            faded=SHARED.theme.fadedText,
         )
 
     def changeFocusState(self, state: bool) -> None:
         """Toggle focus state."""
-        self.itemTitle.setColorState(state)
+        self.itemTitle.setColorState(nwState.NORMAL if state else nwState.INACTIVE)
 
     def setHandle(self, tHandle: str) -> None:
-        """Set the document title from the handle, or alternatively,
-        set the whole document path.
+        """Set the document title from the handle, or alternatively, set
+        the whole document path within the project.
         """
         self._docHandle = tHandle
-
         if CONFIG.showFullPath:
-            self.itemTitle.setText(f"  {nwUnicode.U_RSAQUO}  ".join(reversed(
-                [name for name in SHARED.project.tree.itemPath(tHandle, asName=True)]
-            )))
-        else:
-            self.itemTitle.setText(i.itemName if (i := SHARED.project.tree[tHandle]) else "")
+            self.itemTitle.setText(SHARED.project.tree.itemPath(tHandle, withName=True))
+        elif item := SHARED.project.tree[tHandle]:
+            self.itemTitle.setText([(item.itemHandle, item.itemName)])
 
         self.backButton.setVisible(True)
         self.forwardButton.setVisible(True)
@@ -808,16 +808,11 @@ class GuiDocViewHeader(QWidget):
         if tHandle := self._docHandle:
             self.docViewer.openDocumentRequest.emit(tHandle, nwDocMode.EDIT, "", True)
 
-    ##
-    #  Events
-    ##
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Capture a click on the title and ensure that the item is
-        selected in the project tree.
-        """
-        if event.button() == QtMouseLeft:
-            self.docViewer.requestProjectItemSelected.emit(self._docHandle, True)
+    @pyqtSlot(str)
+    def _processLabelLink(self, link: str) -> None:
+        """Process an activated link in the label."""
+        if link.startswith("#"):
+            self.docViewer.requestProjectItemSelected.emit(link.lstrip("#"), True)
 
 
 class GuiDocViewFooter(QWidget):
@@ -846,38 +841,38 @@ class GuiDocViewFooter(QWidget):
 
         # Show/Hide Details
         self.showHide = NIconToolButton(self, iSz)
-        self.showHide.clicked.connect(lambda: self.docViewer.togglePanelVisibility.emit())
         self.showHide.setToolTip(self.tr("Show/Hide Viewer Panel"))
+        self.showHide.clicked.connect(lambda: self.docViewer.togglePanelVisibility.emit())
 
         # Show Comments
         self.showComments = QToolButton(self)
         self.showComments.setText(self.tr("Comments"))
+        self.showComments.setToolTip(self.tr("Show Comments"))
         self.showComments.setCheckable(True)
         self.showComments.setChecked(CONFIG.viewComments)
         self.showComments.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.showComments.setIconSize(iSz)
         self.showComments.toggled.connect(self._doToggleComments)
-        self.showComments.setToolTip(self.tr("Show Comments"))
 
         # Show Synopsis
         self.showSynopsis = QToolButton(self)
         self.showSynopsis.setText(self.tr("Synopsis"))
+        self.showSynopsis.setToolTip(self.tr("Show Synopsis Comments"))
         self.showSynopsis.setCheckable(True)
         self.showSynopsis.setChecked(CONFIG.viewSynopsis)
         self.showSynopsis.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.showSynopsis.setIconSize(iSz)
         self.showSynopsis.toggled.connect(self._doToggleSynopsis)
-        self.showSynopsis.setToolTip(self.tr("Show Synopsis Comments"))
 
         # Show Notes
         self.showNotes = QToolButton(self)
         self.showNotes.setText(self.tr("Notes"))
+        self.showNotes.setToolTip(self.tr("Show Notes"))
         self.showNotes.setCheckable(True)
         self.showNotes.setChecked(CONFIG.viewNotes)
         self.showNotes.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.showNotes.setIconSize(iSz)
         self.showNotes.toggled.connect(self._doToggleNotes)
-        self.showNotes.setToolTip(self.tr("Show Notes"))
 
         # Assemble Layout
         self.outerBox = QHBoxLayout()
@@ -913,11 +908,12 @@ class GuiDocViewFooter(QWidget):
 
     def updateTheme(self) -> None:
         """Update theme elements."""
-        # Icons
-        fPx = int(0.9*SHARED.theme.fontPixelSize)
-        bulletIcon = SHARED.theme.getToggleIcon("bullet", (fPx, fPx), "blue")
+        logger.debug("Theme Update: GuiDocViewFooter")
 
-        self.showHide.setThemeIcon("panel")
+        fPx = int(0.9 * SHARED.theme.fontPixelSize)
+        bulletIcon = SHARED.theme.getToggleIcon("bullet", (fPx, fPx), "action")
+
+        self.showHide.setThemeIcon("panel", "default")
         self.showComments.setIcon(bulletIcon)
         self.showSynopsis.setIcon(bulletIcon)
         self.showNotes.setIcon(bulletIcon)
